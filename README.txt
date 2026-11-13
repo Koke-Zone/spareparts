@@ -1,21 +1,28 @@
-AL-BAIS MOTORS WEBSITE
-======================
+AL-BAIS MOTORS WEBSITE — Sindhi, Urdu, English
+==============================================
 
-dist/      The finished website. Upload everything inside this folder to your hosting.
-src/       Styles, scripts and the parts catalogue (src/assets/js/products.js).
-build.py   Shop details (phone, email, address, social links, domain) and page text.
+Languages
+  /        Sindhi (main language)
+  /ur/     Urdu
+  /en/     English
+Every page has a language switch at the top.
 
-CHANGE DETAILS
-1. Open build.py and edit the CONFIG section at the top.
-2. Run:  python3 build.py
-3. Upload the new dist/ folder.
+Files
+  build.py        Shop details: phone, email, map, social links, domain (CONFIG at the top)
+  content.py      All page text in Sindhi, Urdu and English
+  policies.py     Privacy, Terms, Returns & Warranty, Delivery pages in all three languages
+  svg_blocks.py   Icons, logo and the hero picture
+  src/            Styles, scripts and the parts catalogue (src/assets/js/products.js)
+  dist/           The finished website (built automatically — do not edit)
+  netlify.toml    Tells Netlify to run build.py and publish dist/
 
-ADD OR EDIT PARTS
-Edit src/assets/js/products.js (copy a line, change it), run build.py, upload dist/.
+Change something
+  1. Edit the file (e.g. a sentence in content.py, a part in products.js).
+  2. Commit and push from VS Code. Netlify rebuilds the site in 1–2 minutes.
+     (To check on your own computer first:  python3 build.py  then open dist/index.html)
 
-FORMS
-Forms email aliasad@gmail.com through FormSubmit (free, no account).
-The FIRST time someone submits a form on the live site, FormSubmit emails
-aliasad@gmail.com an activation link. Click it once — after that, every form
-arrives by email. Forms only work on the live website (not when opening files
-directly from your computer). If sending fails, visitors are offered WhatsApp instead.
+Forms
+  Forms email aliasad@gmail.com through FormSubmit. The first time a form is sent
+  from the live site, FormSubmit emails an activation link — click it once.
+  Form emails use the visitor's language for field names and show which language
+  they used.

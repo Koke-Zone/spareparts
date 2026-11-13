@@ -1,7 +1,9 @@
+# Netlify: every push to GitHub builds the site and publishes the dist/ folder.
 [build]
   command = "python3 build.py"
   publish = "dist"
 
+# Show the custom "page not found" page for wrong links
 [[redirects]]
   from = "/*"
   to = "/404.html"

@@ -1,13 +1,13 @@
 {
   "name": "Al-Bais Motors",
   "short_name": "Al-Bais",
-  "start_url": "index.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#121419",
   "theme_color": "#e8491d",
   "icons": [
     {
-      "src": "assets/img/favicon.svg",
+      "src": "/assets/img/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml"
     }

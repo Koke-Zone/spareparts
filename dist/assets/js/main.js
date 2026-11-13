@@ -1,26 +1,36 @@
 /* Al-Bais Motors — site script.
-   Settings (phone, WhatsApp, form email) come from window.SITE, set in each page. */
+   Settings come from window.SITE and the page's language strings from
+   window.I18N (both written into each page by build.py). */
 (function () {
   'use strict';
 
   var SITE = window.SITE || {};
+  var T = window.I18N || {};
+  var LANG = document.documentElement.lang || 'en';
   var STORE_KEY = 'albais-enquiry';
 
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  // Pick the current language from a { sd, ur, en } object
+  function loc(v) { return v && typeof v === 'object' ? (v[LANG] || v.en) : v; }
 
   function waLink(text) {
     return 'https://wa.me/' + SITE.whatsapp + '?text=' + encodeURIComponent(text);
   }
 
   function icon(name) {
-    return '<svg class="icon" aria-hidden="true"><use href="#i-' + name + '"></use></svg>';
+    return '<svg class="icon' + (name === 'arrow' ? ' icon--dir' : '') + '" aria-hidden="true"><use href="#i-' + name + '"></use></svg>';
   }
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  function fitsText(fits) {
+    return fits.map(function (f) { return f === 'ALL' ? T.allBikes : f; }).join(LANG === 'en' ? ', ' : '، ');
   }
 
   /* ---------- Mobile navigation ---------- */
@@ -31,7 +41,7 @@
       var open = !nav.classList.contains('is-open');
       nav.classList.toggle('is-open', open);
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      toggle.innerHTML = icon(open ? 'close' : 'menu') + '<span class="sr-only">Menu</span>';
+      toggle.innerHTML = icon(open ? 'close' : 'menu') + '<span class="sr-only">' + escapeHtml(T.menu || 'Menu') + '</span>';
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && nav.classList.contains('is-open')) toggle.click();
@@ -41,7 +51,7 @@
   /* ---------- Footer year ---------- */
   $all('[data-year]').forEach(function (el) { el.textContent = new Date().getFullYear(); });
 
-  /* ---------- Enquiry list (saved in the browser) ---------- */
+  /* ---------- Enquiry list (saved in the browser, shared by all languages) ---------- */
   function readList() {
     try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch (e) { return []; }
   }
@@ -76,30 +86,31 @@
 
     var tabs = $('[data-cat-tabs]');
     if (tabs) {
-      var cats = [{ id: 'all', name: 'All parts' }].concat(window.CATEGORIES);
+      var cats = [{ id: 'all', name: T.allParts }].concat(window.CATEGORIES);
       tabs.innerHTML = cats.map(function (c) {
-        return '<li><button type="button" data-cat="' + c.id + '" aria-pressed="' + (state.cat === c.id) + '">' + escapeHtml(c.name) + '</button></li>';
+        return '<li><button type="button" data-cat="' + c.id + '" aria-pressed="' + (state.cat === c.id) + '">' + escapeHtml(loc(c.name)) + '</button></li>';
       }).join('');
       tabs.addEventListener('click', function (e) {
         var b = e.target.closest('button[data-cat]');
         if (!b) return;
         state.cat = b.getAttribute('data-cat');
         $all('button', tabs).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+        if (catSelect) catSelect.value = state.cat;
         render();
       });
     }
 
     var bikeSelect = $('[data-filter-bike]');
     if (bikeSelect) {
-      bikeSelect.innerHTML = '<option value="">All bikes</option>' + window.BIKES.map(function (b) {
+      bikeSelect.innerHTML = '<option value="">' + escapeHtml(T.allBikes) + '</option>' + window.BIKES.map(function (b) {
         return '<option' + (b === state.bike ? ' selected' : '') + '>' + escapeHtml(b) + '</option>';
       }).join('');
       bikeSelect.addEventListener('change', function () { state.bike = bikeSelect.value; render(); });
     }
     var catSelect = $('[data-filter-cat]');
     if (catSelect) {
-      catSelect.innerHTML = '<option value="all">All categories</option>' + window.CATEGORIES.map(function (c) {
-        return '<option value="' + c.id + '"' + (c.id === state.cat ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
+      catSelect.innerHTML = '<option value="all">' + escapeHtml(T.allCategories) + '</option>' + window.CATEGORIES.map(function (c) {
+        return '<option value="' + c.id + '"' + (c.id === state.cat ? ' selected' : '') + '>' + escapeHtml(loc(c.name)) + '</option>';
       }).join('');
       catSelect.addEventListener('change', function () {
         state.cat = catSelect.value;
@@ -113,40 +124,40 @@
       search.addEventListener('input', function () { state.q = search.value; render(); });
     }
 
-    function catName(id) {
-      var c = window.CATEGORIES.filter(function (x) { return x.id === id; })[0];
-      return c ? c.name : '';
-    }
+    function catOf(id) { return window.CATEGORIES.filter(function (x) { return x.id === id; })[0]; }
+    function allText(v) { return v && typeof v === 'object' ? v.sd + ' ' + v.ur + ' ' + v.en : (v || ''); }
 
     function render() {
       var q = state.q.trim().toLowerCase();
       var items = window.PRODUCTS.filter(function (p) {
         if (state.cat !== 'all' && p.cat !== state.cat) return false;
-        if (state.bike && p.fits.indexOf(state.bike) === -1 && p.fits.indexOf('All bikes') === -1) return false;
-        if (q && (p.name + ' ' + p.desc + ' ' + catName(p.cat) + ' ' + p.fits.join(' ')).toLowerCase().indexOf(q) === -1) return false;
+        if (state.bike && p.fits.indexOf(state.bike) === -1 && p.fits.indexOf('ALL') === -1) return false;
+        // Search matches the part in any of the three languages
+        if (q && (allText(p.name) + ' ' + allText(p.desc) + ' ' + allText((catOf(p.cat) || {}).name) + ' ' + p.fits.join(' ')).toLowerCase().indexOf(q) === -1) return false;
         return true;
       });
       if (limit) items = items.slice(0, limit);
 
       if (!items.length) {
-        grid.innerHTML = '<div class="no-results" style="grid-column:1/-1"><p><strong>We list our most common parts here — we stock many more.</strong></p>' +
-          '<p>Send us your bike model and the part you need, and we\'ll confirm price and stock.</p>' +
-          '<a class="btn btn--wa" href="' + waLink('Hi Al-Bais Motors, I am looking for: ' + state.q) + '" target="_blank" rel="noopener">' + icon('whatsapp') + 'Ask on WhatsApp</a></div>';
+        grid.innerHTML = '<div class="no-results" style="grid-column:1/-1"><p><strong>' + escapeHtml(T.noResultsTitle) + '</strong></p>' +
+          '<p>' + escapeHtml(T.noResultsText) + '</p>' +
+          '<a class="btn btn--wa" href="' + waLink(T.msgLookingFor + state.q) + '" target="_blank" rel="noopener">' + icon('whatsapp') + escapeHtml(T.askOnWa) + '</a></div>';
         return;
       }
 
       grid.innerHTML = items.map(function (p) {
-        var msg = 'Hi Al-Bais Motors, please tell me the price and availability of: ' + p.name + '. My bike: ';
+        var name = loc(p.name);
+        var msg = T.msgPrice + name + '\n' + T.msgMyBike;
         return '<article class="card product">' +
           '<div class="product-media">' + icon(p.icon) + '</div>' +
           '<div class="product-body">' +
-            '<span class="product-cat">' + escapeHtml(catName(p.cat)) + '</span>' +
-            '<h3>' + escapeHtml(p.name) + '</h3>' +
-            '<p>' + escapeHtml(p.desc) + '</p>' +
-            '<p class="product-fits"><strong>Fits:</strong> ' + escapeHtml(p.fits.join(', ')) + '</p>' +
+            '<span class="product-cat">' + escapeHtml(loc((catOf(p.cat) || {}).name)) + '</span>' +
+            '<h3>' + escapeHtml(name) + '</h3>' +
+            '<p>' + escapeHtml(loc(p.desc)) + '</p>' +
+            '<p class="product-fits"><strong>' + escapeHtml(T.fits) + '</strong> <bdi>' + escapeHtml(fitsText(p.fits)) + '</bdi></p>' +
             '<div class="product-actions">' +
-              '<a class="btn btn--wa" href="' + waLink(msg) + '" target="_blank" rel="noopener">' + icon('whatsapp') + 'Ask price</a>' +
-              '<button type="button" class="btn btn--ghost" data-add="' + p.id + '">' + icon('plus') + 'Add to list</button>' +
+              '<a class="btn btn--wa" href="' + waLink(msg) + '" target="_blank" rel="noopener">' + icon('whatsapp') + escapeHtml(T.askPrice) + '</a>' +
+              '<button type="button" class="btn btn--ghost" data-add="' + p.id + '">' + icon('plus') + escapeHtml(T.addToList) + '</button>' +
             '</div>' +
           '</div>' +
         '</article>';
@@ -168,10 +179,10 @@
       if (!b) return;
       addToList(b.getAttribute('data-add'));
       b.classList.add('is-added');
-      b.innerHTML = icon('check') + 'Added';
+      b.innerHTML = icon('check') + escapeHtml(T.added);
       setTimeout(function () {
         b.classList.remove('is-added');
-        b.innerHTML = icon('plus') + 'Add more';
+        b.innerHTML = icon('plus') + escapeHtml(T.addMore);
       }, 1400);
     });
 
@@ -187,40 +198,43 @@
     function listText(list) {
       return list.map(function (i) {
         var p = findProduct(i.id);
-        return p ? '- ' + p.name + ' x ' + i.qty : '';
+        return p ? '- ' + loc(p.name) + ' x ' + i.qty : '';
       }).filter(Boolean).join('\n');
     }
 
     function renderList() {
       var list = readList().filter(function (i) { return findProduct(i.id); });
       if (!list.length) {
-        listEl.innerHTML = '<li class="empty-state">Your list is empty. <a href="products.html">Browse parts</a> and tap <strong>Add to list</strong>.</li>';
+        listEl.innerHTML = '<li class="empty-state">' + T.emptyList + '</li>';
       } else {
         listEl.innerHTML = list.map(function (i) {
           var p = findProduct(i.id);
-          return '<li><div><strong>' + escapeHtml(p.name) + '</strong><small>' + escapeHtml(p.fits.slice(0, 2).join(', ')) + '</small></div>' +
-            '<div class="qty"><button type="button" data-dec="' + i.id + '" aria-label="Fewer ' + escapeHtml(p.name) + '">−</button><span>' + i.qty + '</span>' +
-            '<button type="button" data-inc="' + i.id + '" aria-label="More ' + escapeHtml(p.name) + '">+</button></div>' +
-            '<button type="button" class="remove" data-remove="' + i.id + '" aria-label="Remove ' + escapeHtml(p.name) + '">' + icon('close') + '</button></li>';
+          var name = escapeHtml(loc(p.name));
+          return '<li><div><strong>' + name + '</strong><small><bdi>' + escapeHtml(fitsText(p.fits.slice(0, 2))) + '</bdi></small></div>' +
+            '<div class="qty"><button type="button" data-dec="' + i.id + '" aria-label="' + escapeHtml(T.fewer) + ': ' + name + '">−</button><span>' + i.qty + '</span>' +
+            '<button type="button" data-inc="' + i.id + '" aria-label="' + escapeHtml(T.more) + ': ' + name + '">+</button></div>' +
+            '<button type="button" class="remove" data-remove="' + i.id + '" aria-label="' + escapeHtml(T.remove) + ': ' + name + '">' + icon('close') + '</button></li>';
         }).join('');
       }
       var text = listText(list);
       if (hidden) hidden.value = text;
-      if (waBtn) {
-        waBtn.href = waLink('Hi Al-Bais Motors, please send prices and availability for:\n' + (text || '(my parts list)') + '\nMy bike: ');
-      }
+      if (waBtn) waBtn.href = waLink(T.msgListIntro + '\n' + (text || T.myPartsList) + '\n' + T.msgMyBike);
     }
 
     listEl.addEventListener('click', function (e) {
       var list = readList();
-      var id, item;
-      if ((id = (e.target.closest('[data-inc]') || {}).dataset) && id.inc) {
-        item = list.filter(function (i) { return i.id === id.inc; })[0]; if (item) item.qty += 1;
-      } else if ((id = (e.target.closest('[data-dec]') || {}).dataset) && id.dec) {
-        item = list.filter(function (i) { return i.id === id.dec; })[0];
+      var inc = e.target.closest('[data-inc]');
+      var dec = e.target.closest('[data-dec]');
+      var rem = e.target.closest('[data-remove]');
+      var item;
+      if (inc) {
+        item = list.filter(function (i) { return i.id === inc.dataset.inc; })[0];
+        if (item) item.qty += 1;
+      } else if (dec) {
+        item = list.filter(function (i) { return i.id === dec.dataset.dec; })[0];
         if (item) { item.qty -= 1; if (item.qty < 1) list = list.filter(function (i) { return i !== item; }); }
-      } else if ((id = (e.target.closest('[data-remove]') || {}).dataset) && id.remove) {
-        list = list.filter(function (i) { return i.id !== id.remove; });
+      } else if (rem) {
+        list = list.filter(function (i) { return i.id !== rem.dataset.remove; });
       } else {
         return;
       }
@@ -259,14 +273,19 @@
 
       var data = {};
       fd.forEach(function (v, k) { data[k] = data[k] ? data[k] + ', ' + v : v; });
-      data._subject = (form.getAttribute('data-subject') || 'Website enquiry') + ' — ' + (data.Name || 'Al-Bais Motors website');
+      delete data._honey;
+      var nameField = $('[autocomplete="name"]', form);
+      var emailField = $('input[type="email"]', form);
+      var subject = form.getAttribute('data-subject') || T.websiteEnquiry;
+      data._subject = subject + ' — ' + ((nameField && nameField.value) || 'Al-Bais Motors') + ' [' + LANG.toUpperCase() + ']';
       data._template = 'table';
       data._captcha = 'false';
-      data['Sent from page'] = location.href.split('?')[0];
-      if (data.Email) data._replyto = data.Email;
+      data[T.fLanguage] = T.langName;
+      data[T.fSentFrom] = location.href.split('?')[0];
+      if (emailField && emailField.value) data._replyto = emailField.value;
 
       var label = submit ? submit.innerHTML : '';
-      if (submit) { submit.disabled = true; submit.textContent = 'Sending…'; }
+      if (submit) { submit.disabled = true; submit.textContent = T.sending; }
 
       fetch(SITE.formEndpoint, {
         method: 'POST',
@@ -276,8 +295,8 @@
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, body: j }; }); })
         .then(function (res) {
           if (!res.ok || String(res.body.success) === 'false') throw new Error(res.body.message || 'Send failed');
-          if (window.fbq) window.fbq('track', 'Lead', { content_name: form.getAttribute('data-subject') || 'Form' });
-          if (window.gtag) window.gtag('event', 'generate_lead', { form_name: form.getAttribute('data-subject') || 'Form' });
+          if (window.fbq) window.fbq('track', 'Lead', { content_name: subject });
+          if (window.gtag) window.gtag('event', 'generate_lead', { form_name: subject });
           form.reset();
           if (listEl) saveList([]);
           location.href = form.getAttribute('data-thanks') || 'thank-you.html';
@@ -285,9 +304,9 @@
         .catch(function () {
           if (status) {
             status.className = 'form-status is-error';
-            status.innerHTML = 'Sorry, your message could not be sent right now. ' +
-              '<a href="' + waLink((form.getAttribute('data-subject') || 'Enquiry') + '\n' + formToText(data)) + '" target="_blank" rel="noopener"><strong>Send it on WhatsApp instead</strong></a> ' +
-              'or call <a href="tel:' + SITE.phoneIntl + '">' + SITE.phoneDisplay + '</a>.';
+            status.innerHTML = escapeHtml(T.sendError) + ' ' +
+              '<a href="' + waLink(subject + '\n' + formToText(data)) + '" target="_blank" rel="noopener"><strong>' + escapeHtml(T.sendOnWa) + '</strong></a> ' +
+              escapeHtml(T.orCall) + ' <a href="tel:' + SITE.phoneIntl + '" dir="ltr">' + SITE.phoneDisplay + '</a>.';
           }
         })
         .then(function () {
@@ -305,7 +324,7 @@
   });
   $all('[data-share-copy]').forEach(function (b) {
     b.addEventListener('click', function () {
-      var done = function () { b.setAttribute('aria-label', 'Link copied'); b.innerHTML = icon('check'); };
+      var done = function () { b.setAttribute('aria-label', T.linkCopied); b.innerHTML = icon('check'); };
       if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(done, function () {});
     });
   });
